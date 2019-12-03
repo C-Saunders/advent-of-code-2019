@@ -15,29 +15,54 @@ pub fn part1(program_input: &[usize]) -> usize {
     program[1] = 12;
     program[2] = 2;
 
-    let mut index = 0;
+    run_program(&mut program)
+}
 
-    while index < program.len() {
-        let opcode = program[index];
-        let first_operand_index = program[index + 1];
-        let second_operand_index = program[index + 2];
-        let output_index = program[index + 3];
+#[aoc(day2, part2)]
+pub fn part2(program_input: &[usize]) -> usize {
+    for noun in 0..=99 {
+        for verb in 0..=99 {
+            let mut program = Vec::new();
+            program.resize(program_input.len(), 0);
+            program.copy_from_slice(program_input);
+
+            program[1] = noun;
+            program[2] = verb;
+
+            let result = run_program(&mut program);
+            if result == 19690720 {
+                return 100 * noun + verb;
+            }
+        }
+    }
+
+    0
+}
+
+fn run_program(program: &mut [usize]) -> usize {
+    let mut instruction_pointer = 0;
+
+    while instruction_pointer < program.len() {
+        let opcode = program[instruction_pointer];
+        let first_parameter_index = program[instruction_pointer + 1];
+        let second_operand_index = program[instruction_pointer + 2];
+        let output_index = program[instruction_pointer + 3];
 
         match opcode {
             1 => {
                 program[output_index] =
-                    program[first_operand_index] + program[second_operand_index];
+                    program[first_parameter_index] + program[second_operand_index];
             }
             2 => {
                 program[output_index] =
-                    program[first_operand_index] * program[second_operand_index];
+                    program[first_parameter_index] * program[second_operand_index];
             }
             99 => {
                 break;
             }
             _ => panic!("Bad opcode found"),
         };
-        index += 4;
+        instruction_pointer += 4;
     }
 
     program[0]
