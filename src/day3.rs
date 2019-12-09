@@ -48,14 +48,17 @@ impl Point {
 }
 
 #[derive(Debug)]
-struct CrossedBy {
-    a: bool,
-    b: bool,
+struct CrossedBy<T> {
+    a: Option<T>,
+    b: Option<T>,
 }
 
-impl CrossedBy {
+impl<T> CrossedBy<T> {
     fn new() -> Self {
-        CrossedBy { a: false, b: false }
+        CrossedBy {
+            a: Option::None,
+            b: Option::None,
+        }
     }
 }
 
@@ -83,19 +86,19 @@ fn parse_line(line: &str) -> Vec<PathPart> {
 
 #[aoc(day3, part1)]
 pub fn part1(wire_paths: &WirePaths) -> i32 {
-    let mut grid: HashMap<Point, CrossedBy> = HashMap::new();
+    let mut grid: HashMap<Point, CrossedBy<()>> = HashMap::new();
     let mut intersections: Vec<Point> = Vec::new();
 
     for (index, path) in (vec![&wire_paths.a, &wire_paths.b]).iter().enumerate() {
-        add_wire_path_to_grid(path, &Point::origin(), |&current_point| {
+        traverse_wire_path(path, &Point::origin(), |_, &current_point| {
             let cross = grid.entry(current_point).or_insert(CrossedBy::new());
-            if index == 0 {
-                cross.a = true;
-            } else {
-                cross.b = true;
+            if index == 0 && cross.a.is_none() {
+                cross.a = Option::Some(());
+            } else if index == 1 && cross.b.is_none() {
+                cross.b = Option::Some(());
             }
 
-            if cross.a && cross.b {
+            if cross.a.is_some() && cross.b.is_some() {
                 intersections.push(current_point.clone());
             }
         });
@@ -104,22 +107,48 @@ pub fn part1(wire_paths: &WirePaths) -> i32 {
     find_closest_intersection_distance(&intersections)
 }
 
-fn add_wire_path_to_grid<F>(wire_path: &Vec<PathPart>, start_point: &Point, mut point_callback: F)
+#[aoc(day3, part2)]
+pub fn part2(wire_paths: &WirePaths) -> i32 {
+    let mut grid: HashMap<Point, CrossedBy<i32>> = HashMap::new();
+    let mut intersection_total_steps: Vec<i32> = Vec::new();
+
+    for (index, path) in (vec![&wire_paths.a, &wire_paths.b]).iter().enumerate() {
+        traverse_wire_path(path, &Point::origin(), |step_number, &current_point| {
+            let cross = grid.entry(current_point).or_insert(CrossedBy::new());
+            if index == 0 && cross.a.is_none() {
+                cross.a = Option::Some(step_number);
+            } else if index == 1 && cross.b.is_none() {
+                cross.b = Option::Some(step_number);
+            }
+
+            if cross.a.is_some() && cross.b.is_some() {
+                intersection_total_steps.push(cross.a.unwrap() + cross.b.unwrap());
+            }
+        });
+    }
+
+    intersection_total_steps
+        .iter()
+        .fold(std::i32::MAX, |x, y| std::cmp::min(x, *y))
+}
+
+/// This will not runn the callback for the start_point - we don't count this as a "crossed" point
+fn traverse_wire_path<F>(wire_path: &Vec<PathPart>, start_point: &Point, mut point_callback: F)
 where
-    F: FnMut(&Point) -> (),
+    F: FnMut(i32, &Point) -> (),
 {
     let mut last_point = start_point.clone();
-
+    let mut step_number = 0;
     for part in wire_path {
         let new_point = match part.direction {
             Direction::UP => {
-                for y_val in last_point.y..=last_point.y + part.distance {
+                for y_val in last_point.y + 1..=last_point.y + part.distance {
                     let current_point = Point {
                         x: last_point.x,
                         y: y_val,
                     };
-
-                    point_callback(&current_point);
+                    step_number = step_number + 1;
+                    point_callback(step_number, &current_point);
                 }
 
                 Point {
@@ -128,13 +157,13 @@ where
                 }
             }
             Direction::DOWN => {
-                for y_val in last_point.y - part.distance..=last_point.y {
+                for y_val in (last_point.y - part.distance..=last_point.y - 1).rev() {
                     let current_point = Point {
                         x: last_point.x,
                         y: y_val,
                     };
-
-                    point_callback(&current_point);
+                    step_number = step_number + 1;
+                    point_callback(step_number, &current_point);
                 }
 
                 Point {
@@ -143,13 +172,13 @@ where
                 }
             }
             Direction::LEFT => {
-                for x_val in last_point.x - part.distance..=last_point.x {
+                for x_val in (last_point.x - part.distance..=last_point.x - 1).rev() {
                     let current_point = Point {
                         x: x_val,
                         y: last_point.y,
                     };
-
-                    point_callback(&current_point);
+                    step_number = step_number + 1;
+                    point_callback(step_number, &current_point);
                 }
 
                 Point {
@@ -158,13 +187,13 @@ where
                 }
             }
             Direction::RIGHT => {
-                for x_val in last_point.x..=last_point.x + part.distance {
+                for x_val in last_point.x + 1..=last_point.x + part.distance {
                     let current_point = Point {
                         x: x_val,
                         y: last_point.y,
                     };
-
-                    point_callback(&current_point);
+                    step_number = step_number + 1;
+                    point_callback(step_number, &current_point);
                 }
 
                 Point {
@@ -184,11 +213,6 @@ fn find_closest_intersection_distance(intersections: &Vec<Point>) -> i32 {
     for current in intersections {
         let current_cross_distance = current.x.abs() + current.y.abs();
 
-        // exclude the origin
-        if current.x == 0 && current.y == 0 {
-            continue;
-        }
-
         if current_cross_distance < minimum {
             minimum = current_cross_distance;
         }
@@ -196,11 +220,6 @@ fn find_closest_intersection_distance(intersections: &Vec<Point>) -> i32 {
 
     minimum
 }
-
-// #[aoc(day3, part2)]
-// pub fn part2(program_input: &([PathPart], [PathPart])) -> usize {
-//     0
-// }
 
 #[cfg(test)]
 mod tests {
@@ -280,6 +299,28 @@ mod tests {
                 b: parse_line(&"U98,R91,D20,R16,D67,R40,U7,R15,U6,R7"),
             }),
             135
+        );
+    }
+
+    #[test]
+    fn part2_example1() {
+        assert_eq!(
+            part2(&WirePaths {
+                a: parse_line(&"R75,D30,R83,U83,L12,D49,R71,U7,L72"),
+                b: parse_line(&"U62,R66,U55,R34,D71,R55,D58,R83"),
+            }),
+            610
+        );
+    }
+
+    #[test]
+    fn part2_example2() {
+        assert_eq!(
+            part2(&WirePaths {
+                a: parse_line(&"R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51"),
+                b: parse_line(&"U98,R91,D20,R16,D67,R40,U7,R15,U6,R7"),
+            }),
+            410
         );
     }
 }
