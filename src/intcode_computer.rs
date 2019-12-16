@@ -68,7 +68,6 @@ pub fn run_program(program: &mut [i32], inputs: Vec<i32>, outputs: &mut Vec<i32>
                 }
 
                 instruction_pointer += 2;
-                continue;
             }
             // Two inputs
             _ => {
