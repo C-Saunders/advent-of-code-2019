@@ -1,4 +1,4 @@
-use crate::intcode_computer::run_program;
+use crate::intcode_computer::{run_program, IntcodeComputer, ProgramOutput};
 use aoc_runner_derive::{aoc, aoc_generator};
 use itertools::Itertools;
 use std::num::ParseIntError;
@@ -38,7 +38,6 @@ pub fn part1(program_input: &[i32]) -> i32 {
 
 fn get_max_result(program_input: &[i32]) -> MaxResult {
     let program = Vec::from(program_input);
-
     let mut res = MaxResult::new();
 
     for phases in (0..=4).permutations(5) {
@@ -67,23 +66,78 @@ fn get_max_result(program_input: &[i32]) -> MaxResult {
 }
 
 #[aoc(day7, part2)]
-pub fn part2(program: &[i32]) -> i32 {
-    // let mut res = MaxResult::new();
+pub fn part2(program_input: &[i32]) -> i32 {
+    get_max_result_with_feedback_loop(&program_input).thruster_output
+}
 
-    // for phases in (5..=9).permutations(5) {
-    //     let a_phase = phases[0];
-    //     let b_phase = phases[1];
-    //     let c_phase = phases[2];
-    //     let d_phase = phases[3];
-    //     let e_phase = phases[4];
-    // }
+fn get_max_result_with_feedback_loop(program_input: &[i32]) -> MaxResult {
+    let program = Vec::from(program_input);
+    let mut res = MaxResult::new();
 
-    // res.thruster_output
-    0
+    for phases in (5..=9).permutations(5) {
+        let a_phase = phases[0];
+        let b_phase = phases[1];
+        let c_phase = phases[2];
+        let d_phase = phases[3];
+        let e_phase = phases[4];
+
+        let mut a_computer = IntcodeComputer::yielding_computer(&program);
+        a_computer.add_input(a_phase);
+        let mut b_computer = IntcodeComputer::yielding_computer(&program);
+        b_computer.add_input(b_phase);
+        let mut c_computer = IntcodeComputer::yielding_computer(&program);
+        c_computer.add_input(c_phase);
+        let mut d_computer = IntcodeComputer::yielding_computer(&program);
+        d_computer.add_input(d_phase);
+        let mut e_computer = IntcodeComputer::yielding_computer(&program);
+        e_computer.add_input(e_phase);
+
+        a_computer.add_input(0);
+        let mut a_result = extract_output(&(a_computer.run_program()));
+
+        loop {
+            b_computer.add_input(a_result);
+            let b_result = extract_output(&(b_computer.run_program()));
+            c_computer.add_input(b_result);
+            let c_result = extract_output(&(c_computer.run_program()));
+            d_computer.add_input(c_result);
+            let d_result = extract_output(&(d_computer.run_program()));
+
+            e_computer.add_input(d_result);
+            let e_result = e_computer.run_program();
+            match e_result {
+                ProgramOutput::Yielded(val) => {
+                    a_computer.add_input(val);
+                    a_result = extract_output(&(a_computer.run_program()));
+                }
+                ProgramOutput::Complete(values) => {
+                    let final_output = values.last().unwrap();
+                    if final_output > &res.thruster_output {
+                        res.thruster_output = *final_output;
+                        res.a_phase = Some(a_phase);
+                        res.b_phase = Some(b_phase);
+                        res.c_phase = Some(c_phase);
+                        res.d_phase = Some(d_phase);
+                        res.e_phase = Some(e_phase);
+                    }
+                    break;
+                }
+            };
+        }
+    }
+
+    res
+}
+
+fn extract_output(output: &ProgramOutput) -> i32 {
+    match output {
+        ProgramOutput::Yielded(val) => *val,
+        ProgramOutput::Complete(values) => *values.last().unwrap(),
+    }
 }
 
 #[cfg(test)]
-mod tests {
+mod part1_tests {
     use super::*;
 
     #[test]
@@ -133,6 +187,29 @@ mod tests {
                 c_phase: Some(4),
                 d_phase: Some(3),
                 e_phase: Some(2),
+            }
+        );
+    }
+}
+
+#[cfg(test)]
+mod part2_tests {
+    use super::*;
+
+    #[test]
+    fn given_example_1() {
+        assert_eq!(
+            get_max_result_with_feedback_loop(&[
+                3, 26, 1001, 26, -4, 26, 3, 27, 1002, 27, 2, 27, 1, 27, 26, 27, 4, 27, 1001, 28,
+                -1, 28, 1005, 28, 6, 99, 0, 0, 5
+            ]),
+            MaxResult {
+                thruster_output: 139629729,
+                a_phase: Some(9),
+                b_phase: Some(8),
+                c_phase: Some(7),
+                d_phase: Some(6),
+                e_phase: Some(5),
             }
         );
     }

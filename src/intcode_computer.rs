@@ -31,12 +31,19 @@ impl FromStr for Opcode {
     }
 }
 
+pub enum ProgramOutput {
+    Yielded(i32),
+    Complete(Vec<i32>),
+}
+
+#[derive(Debug)]
 pub struct IntcodeComputer {
     program: Vec<i32>,
     inputs: Vec<i32>,
-    inputs_index: usize,
+    next_input_index: usize,
     outputs: Vec<i32>,
     instruction_pointer: usize,
+    yield_on_output: bool,
 }
 
 impl IntcodeComputer {
@@ -44,23 +51,37 @@ impl IntcodeComputer {
         IntcodeComputer {
             program: Vec::from(program_input),
             inputs: Vec::from(initial_inputs),
-            inputs_index: 0,
+            next_input_index: 0,
             outputs: Vec::new(),
             instruction_pointer: 0,
+            yield_on_output: false,
         }
     }
-}
 
-impl IntcodeComputer {
-    pub fn run_program(&mut self) {
+    pub fn yielding_computer(program_input: &[i32]) -> Self {
+        IntcodeComputer {
+            program: Vec::from(program_input),
+            inputs: Vec::new(),
+            next_input_index: 0,
+            outputs: Vec::new(),
+            instruction_pointer: 0,
+            yield_on_output: true,
+        }
+    }
+
+    pub fn add_input(&mut self, input: i32) -> () {
+        self.inputs.push(input);
+    }
+
+    pub fn run_program(&mut self) -> ProgramOutput {
         let program = &mut self.program;
         let program_len = &mut program.len();
-        let inputs_index = &mut self.inputs_index;
+        let next_input_index = &mut self.next_input_index;
         let inputs = &self.inputs;
         let outputs = &mut self.outputs;
         let instruction_pointer = &mut self.instruction_pointer;
 
-        let mut inputs_iter = inputs.iter().skip(*inputs_index);
+        let mut inputs_iter = inputs.iter().skip(*next_input_index);
 
         while instruction_pointer < program_len {
             let padded_instruction = format!("{:0>2}", &program[*instruction_pointer]);
@@ -75,23 +96,28 @@ impl IntcodeComputer {
                 // No inputs
                 Opcode::Input | Opcode::Output => {
                     let output_index = program[*instruction_pointer + 1] as usize;
+                    *instruction_pointer += 2;
                     match opcode {
                         Opcode::Input => {
                             program[output_index] = *inputs_iter.next().unwrap();
-                            *inputs_index += 1;
+                            *next_input_index += 1;
                         }
                         Opcode::Output => {
                             // TODO: Band-aid hack job
-                            if padded_instruction == "104" {
-                                outputs.push(output_index as i32);
+                            let output_value = if padded_instruction == "104" {
+                                output_index as i32
                             } else {
-                                outputs.push(program[output_index]);
+                                program[output_index]
+                            };
+
+                            outputs.push(output_value);
+
+                            if self.yield_on_output {
+                                return ProgramOutput::Yielded(output_value);
                             }
                         }
                         _ => {}
                     }
-
-                    *instruction_pointer += 2;
                 }
                 // Two inputs
                 _ => {
@@ -154,6 +180,8 @@ impl IntcodeComputer {
                 }
             };
         }
+
+        ProgramOutput::Complete(outputs.to_vec())
     }
 }
 
