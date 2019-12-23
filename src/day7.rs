@@ -1,5 +1,6 @@
 use crate::intcode_computer::run_program;
 use aoc_runner_derive::{aoc, aoc_generator};
+use itertools::Itertools;
 use std::num::ParseIntError;
 
 #[aoc_generator(day7)]
@@ -36,52 +37,49 @@ pub fn part1(program_input: &[i32]) -> i32 {
 }
 
 fn get_max_result(program_input: &[i32]) -> MaxResult {
-    let mut program = Vec::new();
-    program.resize(program_input.len(), 0);
+    let program = Vec::from(program_input);
 
     let mut res = MaxResult::new();
 
-    for a_phase in 0..=4 {
-        program.copy_from_slice(program_input);
-        let mut a_outputs = Vec::with_capacity(1);
-        run_program(&mut program, vec![a_phase, 0], &mut a_outputs);
+    for phases in (0..=4).permutations(5) {
+        let a_phase = phases[0];
+        let b_phase = phases[1];
+        let c_phase = phases[2];
+        let d_phase = phases[3];
+        let e_phase = phases[4];
 
-        for b_phase in (0..=4).filter(|b| *b != a_phase) {
-            program.copy_from_slice(program_input);
-            let mut b_outputs = Vec::with_capacity(1);
-            run_program(&mut program, vec![b_phase, a_outputs[0]], &mut b_outputs);
+        let a_outputs = run_program(&program, &vec![a_phase, 0]);
+        let b_outputs = run_program(&program, &vec![b_phase, a_outputs[0]]);
+        let c_outputs = run_program(&program, &vec![c_phase, b_outputs[0]]);
+        let d_outputs = run_program(&program, &vec![d_phase, c_outputs[0]]);
+        let e_outputs = run_program(&program, &vec![e_phase, d_outputs[0]]);
 
-            for c_phase in (0..=4).filter(|c| *c != a_phase && *c != b_phase) {
-                program.copy_from_slice(program_input);
-                let mut c_outputs = Vec::with_capacity(1);
-                run_program(&mut program, vec![c_phase, b_outputs[0]], &mut c_outputs);
-
-                for d_phase in (0..=4).filter(|d| *d != a_phase && *d != b_phase && *d != c_phase) {
-                    program.copy_from_slice(program_input);
-                    let mut d_outputs = Vec::with_capacity(1);
-                    run_program(&mut program, vec![d_phase, c_outputs[0]], &mut d_outputs);
-
-                    for e_phase in (0..=4).filter(|e| {
-                        *e != a_phase && *e != b_phase && *e != c_phase && *e != d_phase
-                    }) {
-                        program.copy_from_slice(program_input);
-                        let mut e_outputs = Vec::with_capacity(1);
-                        run_program(&mut program, vec![e_phase, d_outputs[0]], &mut e_outputs);
-
-                        if e_outputs[0] > res.thruster_output {
-                            res.thruster_output = e_outputs[0];
-                            res.a_phase = Some(a_phase);
-                            res.b_phase = Some(b_phase);
-                            res.c_phase = Some(c_phase);
-                            res.d_phase = Some(d_phase);
-                            res.e_phase = Some(e_phase);
-                        }
-                    }
-                }
-            }
+        if e_outputs[0] > res.thruster_output {
+            res.thruster_output = e_outputs[0];
+            res.a_phase = Some(a_phase);
+            res.b_phase = Some(b_phase);
+            res.c_phase = Some(c_phase);
+            res.d_phase = Some(d_phase);
+            res.e_phase = Some(e_phase);
         }
     }
     res
+}
+
+#[aoc(day7, part2)]
+pub fn part2(program: &[i32]) -> i32 {
+    // let mut res = MaxResult::new();
+
+    // for phases in (5..=9).permutations(5) {
+    //     let a_phase = phases[0];
+    //     let b_phase = phases[1];
+    //     let c_phase = phases[2];
+    //     let d_phase = phases[3];
+    //     let e_phase = phases[4];
+    // }
+
+    // res.thruster_output
+    0
 }
 
 #[cfg(test)]

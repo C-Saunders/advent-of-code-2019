@@ -1,4 +1,4 @@
-use crate::intcode_computer::run_program_no_stdio;
+use crate::intcode_computer::run_program_no_io;
 use aoc_runner_derive::{aoc, aoc_generator};
 use std::num::ParseIntError;
 
@@ -16,7 +16,7 @@ pub fn part1(program_input: &[i32]) -> i32 {
     program[1] = 12;
     program[2] = 2;
 
-    run_program_no_stdio(&mut program)[0]
+    run_program_no_io(&mut program)[0]
 }
 
 #[aoc(day2, part2)]
@@ -30,7 +30,7 @@ pub fn part2(program_input: &[i32]) -> i32 {
             program[1] = noun;
             program[2] = verb;
 
-            let result = run_program_no_stdio(&mut program)[0];
+            let result = run_program_no_io(&mut program)[0];
             if result == 19690720 {
                 return 100 * noun + verb;
             }
