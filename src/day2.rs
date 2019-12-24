@@ -3,12 +3,12 @@ use aoc_runner_derive::{aoc, aoc_generator};
 use std::num::ParseIntError;
 
 #[aoc_generator(day2)]
-pub fn get_program(input: &str) -> Result<Vec<i32>, ParseIntError> {
-    input.split(',').map(|l| l.parse::<i32>()).collect()
+pub fn get_program(input: &str) -> Result<Vec<i64>, ParseIntError> {
+    input.split(',').map(|l| l.parse::<i64>()).collect()
 }
 
 #[aoc(day2, part1)]
-pub fn part1(program_input: &[i32]) -> i32 {
+pub fn part1(program_input: &[i64]) -> i64 {
     let mut program = Vec::new();
     program.resize(program_input.len(), 0);
     program.copy_from_slice(program_input);
@@ -20,7 +20,7 @@ pub fn part1(program_input: &[i32]) -> i32 {
 }
 
 #[aoc(day2, part2)]
-pub fn part2(program_input: &[i32]) -> i32 {
+pub fn part2(program_input: &[i64]) -> i64 {
     for noun in 0..=99 {
         for verb in 0..=99 {
             let mut program = Vec::new();

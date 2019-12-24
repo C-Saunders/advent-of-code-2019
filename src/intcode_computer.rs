@@ -32,22 +32,22 @@ impl FromStr for Opcode {
 }
 
 pub enum ProgramOutput {
-    Yielded(i32),
-    Complete(Vec<i32>),
+    Yielded(i64),
+    Complete(Vec<i64>),
 }
 
 #[derive(Debug)]
 pub struct IntcodeComputer {
-    program: Vec<i32>,
-    inputs: Vec<i32>,
+    program: Vec<i64>,
+    inputs: Vec<i64>,
     next_input_index: usize,
-    outputs: Vec<i32>,
+    outputs: Vec<i64>,
     instruction_pointer: usize,
     yield_on_output: bool,
 }
 
 impl IntcodeComputer {
-    pub fn new(program_input: &[i32], initial_inputs: &[i32]) -> Self {
+    pub fn new(program_input: &[i64], initial_inputs: &[i64]) -> Self {
         IntcodeComputer {
             program: Vec::from(program_input),
             inputs: Vec::from(initial_inputs),
@@ -58,7 +58,7 @@ impl IntcodeComputer {
         }
     }
 
-    pub fn yielding_computer(program_input: &[i32]) -> Self {
+    pub fn yielding_computer(program_input: &[i64]) -> Self {
         IntcodeComputer {
             program: Vec::from(program_input),
             inputs: Vec::new(),
@@ -69,7 +69,7 @@ impl IntcodeComputer {
         }
     }
 
-    pub fn add_input(&mut self, input: i32) -> () {
+    pub fn add_input(&mut self, input: i64) -> () {
         self.inputs.push(input);
     }
 
@@ -105,7 +105,7 @@ impl IntcodeComputer {
                         Opcode::Output => {
                             // TODO: Band-aid hack job
                             let output_value = if padded_instruction == "104" {
-                                output_index as i32
+                                output_index as i64
                             } else {
                                 program[output_index]
                             };
@@ -126,7 +126,7 @@ impl IntcodeComputer {
                         &padded_instruction[..(padded_instruction.len() - 2)]
                     );
 
-                    let parameter_values: Vec<i32> = parameter_modes
+                    let parameter_values: Vec<i64> = parameter_modes
                         .chars()
                         .rev()
                         .enumerate()
@@ -185,13 +185,13 @@ impl IntcodeComputer {
     }
 }
 
-pub fn run_program_no_io(program: &[i32]) -> Vec<i32> {
+pub fn run_program_no_io(program: &[i64]) -> Vec<i64> {
     let mut computer = IntcodeComputer::new(program, &vec![]);
     computer.run_program();
     computer.program
 }
 
-pub fn run_program(program: &[i32], inputs: &[i32]) -> Vec<i32> {
+pub fn run_program(program: &[i64], inputs: &[i64]) -> Vec<i64> {
     let mut computer = IntcodeComputer::new(program, inputs);
     computer.run_program();
     computer.outputs

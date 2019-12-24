@@ -4,24 +4,24 @@ use itertools::Itertools;
 use std::num::ParseIntError;
 
 #[aoc_generator(day7)]
-pub fn get_program(input: &str) -> Result<Vec<i32>, ParseIntError> {
-    input.split(',').map(|l| l.parse::<i32>()).collect()
+pub fn get_program(input: &str) -> Result<Vec<i64>, ParseIntError> {
+    input.split(',').map(|l| l.parse::<i64>()).collect()
 }
 
 #[derive(Debug, PartialEq)]
 pub struct MaxResult {
-    thruster_output: i32,
-    a_phase: Option<i32>,
-    b_phase: Option<i32>,
-    c_phase: Option<i32>,
-    d_phase: Option<i32>,
-    e_phase: Option<i32>,
+    thruster_output: i64,
+    a_phase: Option<i64>,
+    b_phase: Option<i64>,
+    c_phase: Option<i64>,
+    d_phase: Option<i64>,
+    e_phase: Option<i64>,
 }
 
 impl MaxResult {
     fn new() -> Self {
         MaxResult {
-            thruster_output: std::i32::MIN,
+            thruster_output: std::i64::MIN,
             a_phase: None,
             b_phase: None,
             c_phase: None,
@@ -32,11 +32,11 @@ impl MaxResult {
 }
 
 #[aoc(day7, part1)]
-pub fn part1(program_input: &[i32]) -> i32 {
+pub fn part1(program_input: &[i64]) -> i64 {
     get_max_result(&program_input).thruster_output
 }
 
-fn get_max_result(program_input: &[i32]) -> MaxResult {
+fn get_max_result(program_input: &[i64]) -> MaxResult {
     let program = Vec::from(program_input);
     let mut res = MaxResult::new();
 
@@ -66,11 +66,11 @@ fn get_max_result(program_input: &[i32]) -> MaxResult {
 }
 
 #[aoc(day7, part2)]
-pub fn part2(program_input: &[i32]) -> i32 {
+pub fn part2(program_input: &[i64]) -> i64 {
     get_max_result_with_feedback_loop(&program_input).thruster_output
 }
 
-fn get_max_result_with_feedback_loop(program_input: &[i32]) -> MaxResult {
+fn get_max_result_with_feedback_loop(program_input: &[i64]) -> MaxResult {
     let program = Vec::from(program_input);
     let mut res = MaxResult::new();
 
@@ -129,7 +129,7 @@ fn get_max_result_with_feedback_loop(program_input: &[i32]) -> MaxResult {
     res
 }
 
-fn extract_output(output: &ProgramOutput) -> i32 {
+fn extract_output(output: &ProgramOutput) -> i64 {
     match output {
         ProgramOutput::Yielded(val) => *val,
         ProgramOutput::Complete(values) => *values.last().unwrap(),
