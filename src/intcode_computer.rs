@@ -10,6 +10,7 @@ enum Opcode {
     JumpIfFalse,
     LessThan,
     Equals,
+    ChangeRelativeBase,
     End,
 }
 
@@ -25,6 +26,7 @@ impl FromStr for Opcode {
             "06" => Ok(Opcode::JumpIfFalse),
             "07" => Ok(Opcode::LessThan),
             "08" => Ok(Opcode::Equals),
+            "09" => Ok(Opcode::ChangeRelativeBase),
             "99" => Ok(Opcode::End),
             _ => Err(()),
         }
@@ -44,6 +46,7 @@ pub struct IntcodeComputer {
     outputs: Vec<i64>,
     instruction_pointer: usize,
     yield_on_output: bool,
+    relative_base: usize,
 }
 
 impl IntcodeComputer {
@@ -55,6 +58,7 @@ impl IntcodeComputer {
             outputs: Vec::new(),
             instruction_pointer: 0,
             yield_on_output: false,
+            relative_base: 0,
         }
     }
 
@@ -66,6 +70,7 @@ impl IntcodeComputer {
             outputs: Vec::new(),
             instruction_pointer: 0,
             yield_on_output: true,
+            relative_base: 0,
         }
     }
 
@@ -363,5 +368,20 @@ mod complex {
             &vec![80],
         );
         assert_eq!(outputs[0], 1001);
+    }
+}
+
+#[cfg(test)]
+mod large_numbers {
+    use super::*;
+
+    #[test]
+    fn output_only() {
+        assert_eq!(run_program(&[104, 1125899906842624, 99], &[]), [1125899906842624]);
+    }
+
+    #[test]
+    fn math_and_output() {
+        assert_eq!(run_program(&[1102,34915192,34915192,7,4,7,99,0], &[]), [34915192 * 34915192]);
     }
 }
