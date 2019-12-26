@@ -120,12 +120,16 @@ impl IntcodeComputer {
         }
     }
 
-    // TODO: could this be relative-aware?
-    fn set_value(&mut self, position: usize, value: i64) {
-        if position < self.program.len() {
-            self.program[position] = value;
+    fn set_value(&mut self, position: usize, value: i64, param_mode: &ParameterMode) {
+        let adjusted_position = position
+            + match param_mode {
+                ParameterMode::Relative => self.relative_base,
+                _ => 0,
+            } as usize;
+        if adjusted_position < self.program.len() {
+            self.program[adjusted_position] = value;
         } else {
-            self.extra_memory.insert(position, value);
+            self.extra_memory.insert(adjusted_position, value);
         }
     }
 
@@ -142,12 +146,12 @@ impl IntcodeComputer {
 
             let parameter_values: Vec<i64> = (0..opcode.num_params())
                 .map(|index| {
-                    let value = self.get_value(self.instruction_pointer + index + 1);
+                    let raw_value = self.get_value(self.instruction_pointer + index + 1);
                     match parameter_modes[index] {
-                        ParameterMode::Pointer => self.get_value(value as usize),
-                        ParameterMode::Immediate => value,
+                        ParameterMode::Pointer => self.get_value(raw_value as usize),
+                        ParameterMode::Immediate => raw_value,
                         ParameterMode::Relative => {
-                            *(&self.get_value((value + self.relative_base) as usize))
+                            *(&self.get_value((raw_value + self.relative_base) as usize))
                         }
                     }
                 })
@@ -156,15 +160,16 @@ impl IntcodeComputer {
             match opcode {
                 Opcode::Halt => break,
                 Opcode::Input => {
-                    let value = self.get_value((self.instruction_pointer + 1) as usize);
+                    let output_index = self.get_value((self.instruction_pointer + 1) as usize);
                     self.set_value(
-                        (value + self.relative_base) as usize,
+                        output_index as usize,
                         *self
                             .inputs
                             .iter()
                             .skip(self.next_input_index)
                             .next()
                             .unwrap(),
+                        &parameter_modes[0],
                     );
                     self.next_input_index += 1;
                     self.instruction_pointer += 2;
@@ -184,9 +189,9 @@ impl IntcodeComputer {
                     self.instruction_pointer += 2;
                 }
                 Opcode::Add | Opcode::Multiply | Opcode::LessThan | Opcode::Equals => {
-                    let output_index = self.program[self.instruction_pointer + 3] as usize;
+                    let raw_output_index = self.program[self.instruction_pointer + 3] as usize;
                     self.set_value(
-                        output_index,
+                        raw_output_index,
                         match opcode {
                             Opcode::Add => parameter_values[0] + parameter_values[1],
                             Opcode::Multiply => parameter_values[0] * parameter_values[1],
@@ -206,6 +211,7 @@ impl IntcodeComputer {
                             }
                             _ => panic!("More bad"),
                         },
+                        parameter_modes.last().unwrap(),
                     );
                     self.instruction_pointer += 4;
                 }
