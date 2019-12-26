@@ -191,8 +191,18 @@ mod large_numbers {
 }
 
 #[cfg(test)]
-mod relative_mode {
+mod relative_mode_and_extra_memory {
     use super::*;
+
+    #[test]
+    fn relative_mode() {
+        let input = [109, 1, 204, -1, 99];
+        let mut comp = IntcodeComputer::new(&input, &[]);
+        match comp.run_program() {
+            ProgramOutput::Yielded(_) => panic!("Should not yield"),
+            ProgramOutput::Complete(output) => assert_eq!(output, [109]),
+        }
+    }
 
     #[test]
     #[ignore]

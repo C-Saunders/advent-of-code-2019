@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 #[derive(Debug, PartialEq)]
 enum Opcode {
     Add,
@@ -11,24 +9,56 @@ enum Opcode {
     LessThan,
     Equals,
     ChangeRelativeBase,
-    End,
+    Halt,
 }
 
-impl FromStr for Opcode {
-    type Err = ();
-    fn from_str(opcode: &str) -> Result<Self, Self::Err> {
+impl From<i64> for Opcode {
+    fn from(opcode: i64) -> Self {
         match opcode {
-            "01" => Ok(Opcode::Add),
-            "02" => Ok(Opcode::Multiply),
-            "03" => Ok(Opcode::Input),
-            "04" => Ok(Opcode::Output),
-            "05" => Ok(Opcode::JumpIfTrue),
-            "06" => Ok(Opcode::JumpIfFalse),
-            "07" => Ok(Opcode::LessThan),
-            "08" => Ok(Opcode::Equals),
-            "09" => Ok(Opcode::ChangeRelativeBase),
-            "99" => Ok(Opcode::End),
-            _ => Err(()),
+            1 => Opcode::Add,
+            2 => Opcode::Multiply,
+            3 => Opcode::Input,
+            4 => Opcode::Output,
+            5 => Opcode::JumpIfTrue,
+            6 => Opcode::JumpIfFalse,
+            7 => Opcode::LessThan,
+            8 => Opcode::Equals,
+            9 => Opcode::ChangeRelativeBase,
+            99 => Opcode::Halt,
+            _ => panic!("Bad op code"),
+        }
+    }
+}
+
+impl Opcode {
+    fn num_params(&self) -> usize {
+        match self {
+            Opcode::Add
+            | Opcode::Multiply
+            | Opcode::JumpIfTrue
+            | Opcode::JumpIfFalse
+            | Opcode::LessThan
+            | Opcode::Equals => 2,
+            Opcode::Input | Opcode::Output | Opcode::ChangeRelativeBase => 1,
+            Opcode::Halt => 0,
+        }
+    }
+}
+
+#[derive(Debug)]
+enum ParameterMode {
+    Pointer,
+    Immediate,
+    Relative,
+}
+
+impl From<i64> for ParameterMode {
+    fn from(opcode: i64) -> Self {
+        match opcode {
+            0 => ParameterMode::Pointer,
+            1 => ParameterMode::Immediate,
+            2 => ParameterMode::Relative,
+            _ => panic!("Bad param mode"),
         }
     }
 }
@@ -46,7 +76,7 @@ pub struct IntcodeComputer {
     outputs: Vec<i64>,
     instruction_pointer: usize,
     yield_on_output: bool,
-    relative_base: usize,
+    relative_base: i64,
 }
 
 impl IntcodeComputer {
@@ -85,102 +115,95 @@ impl IntcodeComputer {
         let inputs = &self.inputs;
         let outputs = &mut self.outputs;
         let instruction_pointer = &mut self.instruction_pointer;
+        let relative_base = &mut self.relative_base;
 
         let mut inputs_iter = inputs.iter().skip(*next_input_index);
 
         while instruction_pointer < program_len {
-            let padded_instruction = format!("{:0>2}", &program[*instruction_pointer]);
-            let opcode =
-                Opcode::from_str(&padded_instruction[(padded_instruction.len() - 2)..]).unwrap();
+            let instruction = program[*instruction_pointer as usize];
 
-            if opcode == Opcode::End {
+            let opcode = Opcode::from(instruction % 100);
+
+            if opcode == Opcode::Halt {
                 break;
             }
 
+            let parameter_modes = [
+                ParameterMode::from((instruction / 100) % 10),
+                ParameterMode::from((instruction / 1000) % 10),
+                ParameterMode::from((instruction / 10000) % 10),
+            ];
+
+            let parameter_values: Vec<i64> = (0..opcode.num_params())
+                .map(|index| {
+                    let value = program[*instruction_pointer + index + 1];
+                    match parameter_modes[index] {
+                        ParameterMode::Pointer => program[value as usize],
+                        ParameterMode::Immediate => value,
+                        ParameterMode::Relative => program[(value + *relative_base) as usize],
+                    }
+                })
+                .collect();
+
             match opcode {
-                // No inputs
-                Opcode::Input | Opcode::Output => {
-                    let output_index = program[*instruction_pointer + 1] as usize;
+                Opcode::Halt => break,
+                Opcode::Input => {
+                    let value = program[*instruction_pointer + 1];
+
+                    // TODO: this needs to only add relative base in relative mode
+                    program[(value + *relative_base) as usize] = *inputs_iter.next().unwrap();
+                    *next_input_index += 1;
                     *instruction_pointer += 2;
-                    match opcode {
-                        Opcode::Input => {
-                            program[output_index] = *inputs_iter.next().unwrap();
-                            *next_input_index += 1;
-                        }
-                        Opcode::Output => {
-                            // TODO: Band-aid hack job
-                            let output_value = if padded_instruction == "104" {
-                                output_index as i64
-                            } else {
-                                program[output_index]
-                            };
+                }
+                Opcode::Output => {
+                    let output_value = parameter_values[0];
+                    outputs.push(output_value);
 
-                            outputs.push(output_value);
+                    *instruction_pointer += 2;
 
-                            if self.yield_on_output {
-                                return ProgramOutput::Yielded(output_value);
-                            }
-                        }
-                        _ => {}
+                    if self.yield_on_output {
+                        return ProgramOutput::Yielded(output_value);
                     }
                 }
-                // Two inputs
-                _ => {
-                    let parameter_modes = format!(
-                        "{:0>2}",
-                        &padded_instruction[..(padded_instruction.len() - 2)]
-                    );
-
-                    let parameter_values: Vec<i64> = parameter_modes
-                        .chars()
-                        .rev()
-                        .enumerate()
-                        .map(|(index, op_mode)| match op_mode {
-                            '0' => program[program[*instruction_pointer + index + 1] as usize],
-                            '1' => program[*instruction_pointer + index + 1],
-                            _ => panic!("Bad"),
-                        })
-                        .collect();
-
-                    match opcode {
-                        Opcode::Add | Opcode::Multiply | Opcode::LessThan | Opcode::Equals => {
-                            let output_index = program[*instruction_pointer + 3] as usize;
-                            program[output_index] = match opcode {
-                                Opcode::Add => parameter_values[0] + parameter_values[1],
-                                Opcode::Multiply => parameter_values[0] * parameter_values[1],
-                                Opcode::LessThan => {
-                                    if parameter_values[0] < parameter_values[1] {
-                                        1
-                                    } else {
-                                        0
-                                    }
-                                }
-                                Opcode::Equals => {
-                                    if parameter_values[0] == parameter_values[1] {
-                                        1
-                                    } else {
-                                        0
-                                    }
-                                }
-                                _ => panic!("More bad"),
-                            };
-                            *instruction_pointer += 4;
-                        }
-                        Opcode::JumpIfTrue => {
-                            if parameter_values[0] != 0 {
-                                &instruction_pointer.clone_from(&(parameter_values[1] as usize));
+                Opcode::ChangeRelativeBase => {
+                    *relative_base += parameter_values[0];
+                    *instruction_pointer += 2;
+                }
+                Opcode::Add | Opcode::Multiply | Opcode::LessThan | Opcode::Equals => {
+                    let output_index = program[*instruction_pointer + 3] as usize;
+                    program[output_index] = match opcode {
+                        Opcode::Add => parameter_values[0] + parameter_values[1],
+                        Opcode::Multiply => parameter_values[0] * parameter_values[1],
+                        Opcode::LessThan => {
+                            if parameter_values[0] < parameter_values[1] {
+                                1
                             } else {
-                                *instruction_pointer += 3;
+                                0
                             }
                         }
-                        Opcode::JumpIfFalse => {
-                            if parameter_values[0] == 0 {
-                                instruction_pointer.clone_from(&(parameter_values[1] as usize));
+                        Opcode::Equals => {
+                            if parameter_values[0] == parameter_values[1] {
+                                1
                             } else {
-                                *instruction_pointer += 3;
+                                0
                             }
                         }
-                        _ => {}
+                        _ => panic!("More bad"),
+                    };
+                    *instruction_pointer += 4;
+                }
+                Opcode::JumpIfTrue => {
+                    if parameter_values[0] != 0 {
+                        &instruction_pointer.clone_from(&(parameter_values[1] as usize));
+                    } else {
+                        *instruction_pointer += 3;
+                    }
+                }
+                Opcode::JumpIfFalse => {
+                    if parameter_values[0] == 0 {
+                        instruction_pointer.clone_from(&(parameter_values[1] as usize));
+                    } else {
+                        *instruction_pointer += 3;
                     }
                 }
             };
