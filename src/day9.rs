@@ -12,3 +12,9 @@ pub fn part1(program: &[i64]) -> i64 {
     let outputs = run_program(&program, &[1]);
     *outputs.last().unwrap()
 }
+
+#[aoc(day9, part2)]
+pub fn part2(program: &[i64]) -> i64 {
+    let outputs = run_program(&program, &[2]);
+    *outputs.last().unwrap()
+}
