@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug, PartialEq)]
 enum Opcode {
     Add,
@@ -77,6 +79,7 @@ pub struct IntcodeComputer {
     instruction_pointer: usize,
     yield_on_output: bool,
     relative_base: i64,
+    extra_memory: HashMap<usize, i64>,
 }
 
 impl IntcodeComputer {
@@ -89,6 +92,7 @@ impl IntcodeComputer {
             instruction_pointer: 0,
             yield_on_output: false,
             relative_base: 0,
+            extra_memory: HashMap::with_capacity(0),
         }
     }
 
@@ -101,6 +105,7 @@ impl IntcodeComputer {
             instruction_pointer: 0,
             yield_on_output: true,
             relative_base: 0,
+            extra_memory: HashMap::with_capacity(0),
         }
     }
 
@@ -108,25 +113,26 @@ impl IntcodeComputer {
         self.inputs.push(input);
     }
 
+    fn get_value(&self, position: usize) -> i64 {
+        match self.program.get(position) {
+            Some(val) => *val,
+            None => *self.extra_memory.get(&position).unwrap_or(&0),
+        }
+    }
+
+    // TODO: could this be relative-aware?
+    fn set_value(&mut self, position: usize, value: i64) {
+        if position < self.program.len() {
+            self.program[position] = value;
+        } else {
+            self.extra_memory.insert(position, value);
+        }
+    }
+
     pub fn run_program(&mut self) -> ProgramOutput {
-        let program = &mut self.program;
-        let program_len = &mut program.len();
-        let next_input_index = &mut self.next_input_index;
-        let inputs = &self.inputs;
-        let outputs = &mut self.outputs;
-        let instruction_pointer = &mut self.instruction_pointer;
-        let relative_base = &mut self.relative_base;
-
-        let mut inputs_iter = inputs.iter().skip(*next_input_index);
-
-        while instruction_pointer < program_len {
-            let instruction = program[*instruction_pointer as usize];
-
+        while self.instruction_pointer < self.program.len() {
+            let instruction = self.program[self.instruction_pointer as usize];
             let opcode = Opcode::from(instruction % 100);
-
-            if opcode == Opcode::Halt {
-                break;
-            }
 
             let parameter_modes = [
                 ParameterMode::from((instruction / 100) % 10),
@@ -136,11 +142,13 @@ impl IntcodeComputer {
 
             let parameter_values: Vec<i64> = (0..opcode.num_params())
                 .map(|index| {
-                    let value = program[*instruction_pointer + index + 1];
+                    let value = self.get_value(self.instruction_pointer + index + 1);
                     match parameter_modes[index] {
-                        ParameterMode::Pointer => program[value as usize],
+                        ParameterMode::Pointer => self.get_value(value as usize),
                         ParameterMode::Immediate => value,
-                        ParameterMode::Relative => program[(value + *relative_base) as usize],
+                        ParameterMode::Relative => {
+                            *(&self.get_value((value + self.relative_base) as usize))
+                        }
                     }
                 })
                 .collect();
@@ -148,68 +156,79 @@ impl IntcodeComputer {
             match opcode {
                 Opcode::Halt => break,
                 Opcode::Input => {
-                    let value = program[*instruction_pointer + 1];
-
-                    // TODO: this needs to only add relative base in relative mode
-                    program[(value + *relative_base) as usize] = *inputs_iter.next().unwrap();
-                    *next_input_index += 1;
-                    *instruction_pointer += 2;
+                    let value = self.get_value((self.instruction_pointer + 1) as usize);
+                    self.set_value(
+                        (value + self.relative_base) as usize,
+                        *self
+                            .inputs
+                            .iter()
+                            .skip(self.next_input_index)
+                            .next()
+                            .unwrap(),
+                    );
+                    self.next_input_index += 1;
+                    self.instruction_pointer += 2;
                 }
                 Opcode::Output => {
                     let output_value = parameter_values[0];
-                    outputs.push(output_value);
+                    self.outputs.push(output_value);
 
-                    *instruction_pointer += 2;
+                    self.instruction_pointer += 2;
 
                     if self.yield_on_output {
                         return ProgramOutput::Yielded(output_value);
                     }
                 }
                 Opcode::ChangeRelativeBase => {
-                    *relative_base += parameter_values[0];
-                    *instruction_pointer += 2;
+                    self.relative_base += parameter_values[0];
+                    self.instruction_pointer += 2;
                 }
                 Opcode::Add | Opcode::Multiply | Opcode::LessThan | Opcode::Equals => {
-                    let output_index = program[*instruction_pointer + 3] as usize;
-                    program[output_index] = match opcode {
-                        Opcode::Add => parameter_values[0] + parameter_values[1],
-                        Opcode::Multiply => parameter_values[0] * parameter_values[1],
-                        Opcode::LessThan => {
-                            if parameter_values[0] < parameter_values[1] {
-                                1
-                            } else {
-                                0
+                    let output_index = self.program[self.instruction_pointer + 3] as usize;
+                    self.set_value(
+                        output_index,
+                        match opcode {
+                            Opcode::Add => parameter_values[0] + parameter_values[1],
+                            Opcode::Multiply => parameter_values[0] * parameter_values[1],
+                            Opcode::LessThan => {
+                                if parameter_values[0] < parameter_values[1] {
+                                    1
+                                } else {
+                                    0
+                                }
                             }
-                        }
-                        Opcode::Equals => {
-                            if parameter_values[0] == parameter_values[1] {
-                                1
-                            } else {
-                                0
+                            Opcode::Equals => {
+                                if parameter_values[0] == parameter_values[1] {
+                                    1
+                                } else {
+                                    0
+                                }
                             }
-                        }
-                        _ => panic!("More bad"),
-                    };
-                    *instruction_pointer += 4;
+                            _ => panic!("More bad"),
+                        },
+                    );
+                    self.instruction_pointer += 4;
                 }
                 Opcode::JumpIfTrue => {
                     if parameter_values[0] != 0 {
-                        &instruction_pointer.clone_from(&(parameter_values[1] as usize));
+                        self.instruction_pointer
+                            .clone_from(&(parameter_values[1] as usize));
                     } else {
-                        *instruction_pointer += 3;
+                        self.instruction_pointer += 3;
                     }
                 }
                 Opcode::JumpIfFalse => {
                     if parameter_values[0] == 0 {
-                        instruction_pointer.clone_from(&(parameter_values[1] as usize));
+                        self.instruction_pointer
+                            .clone_from(&(parameter_values[1] as usize));
                     } else {
-                        *instruction_pointer += 3;
+                        self.instruction_pointer += 3;
                     }
                 }
             };
         }
 
-        ProgramOutput::Complete(outputs.to_vec())
+        ProgramOutput::Complete(self.outputs.to_vec())
     }
 }
 
