@@ -1,3 +1,4 @@
+use crate::grid::Point;
 use aoc_runner_derive::{aoc, aoc_generator};
 use std::collections::HashMap;
 use std::num::ParseIntError;
@@ -33,18 +34,6 @@ pub struct PathPart {
 pub struct WirePaths {
     a: Vec<PathPart>,
     b: Vec<PathPart>,
-}
-
-#[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
-struct Point {
-    x: i32,
-    y: i32,
-}
-
-impl Point {
-    fn origin() -> Self {
-        Point { x: 0, y: 0 }
-    }
 }
 
 #[derive(Debug)]
