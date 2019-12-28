@@ -1,4 +1,5 @@
 use ordered_float::OrderedFloat;
+use std::cmp;
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug)]
 pub struct Point {
@@ -9,6 +10,40 @@ pub struct Point {
 impl Point {
     pub fn origin() -> Self {
         Point { x: 0, y: 0 }
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub struct Area {
+    pub min_x: i32,
+    pub min_y: i32,
+    pub max_x: i32,
+    pub max_y: i32,
+}
+
+impl Area {
+    pub fn new(min_x: i32, min_y: i32, max_x: i32, max_y: i32) -> Self {
+        Area {
+            min_x,
+            min_y,
+            max_x,
+            max_y,
+        }
+    }
+    pub fn from_point_list(points: &Vec<&Point>) -> Self {
+        let mut min_x = std::i32::MAX;
+        let mut min_y = std::i32::MAX;
+        let mut max_x = std::i32::MIN;
+        let mut max_y = std::i32::MIN;
+
+        for current_point in points.iter() {
+            min_x = cmp::min(current_point.x, min_x);
+            min_y = cmp::min(current_point.y, min_y);
+            max_x = cmp::max(current_point.x, max_x);
+            max_y = cmp::max(current_point.y, max_y);
+        }
+
+        Area::new(min_x, min_y, max_x, max_y)
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::grid::Point;
+use crate::grid::{Area, Point};
 use crate::intcode_computer::{IntcodeComputer, ProgramOutput};
 use aoc_runner_derive::{aoc, aoc_generator};
 use std::collections::{HashMap, HashSet};
@@ -115,6 +115,33 @@ pub fn get_program(input: &str) -> Result<Vec<i64>, ParseIntError> {
 #[aoc(day11, part1)]
 pub fn part1(program_input: &[i64]) -> usize {
     let mut grid = HashMap::<Point, Color>::new();
+    run_robot(&program_input, &mut grid).len()
+}
+
+#[aoc(day11, part2)]
+pub fn part2(program_input: &[i64]) -> String {
+    let mut grid = HashMap::<Point, Color>::new();
+    grid.insert(Point::origin(), Color::White);
+
+    run_robot(&program_input, &mut grid);
+    let covered_area = Area::from_point_list(&grid.keys().collect());
+
+    let mut result = "\n".to_string();
+
+    for y in covered_area.min_y..=covered_area.max_y {
+        for x in covered_area.min_x..=covered_area.max_x {
+            result.push_str(match grid.get(&Point { x: x, y: y }) {
+                None | Some(Color::Black) => " ",
+                Some(Color::White) => "#",
+            });
+        }
+        result.push_str("\n");
+    }
+
+    result
+}
+
+fn run_robot(program_input: &[i64], grid: &mut HashMap<Point, Color>) -> HashSet<Point> {
     let mut painted_points = HashSet::<Point>::new();
     let mut robot = Robot::new();
     let mut computer = IntcodeComputer::yielding_computer(&program_input);
@@ -144,5 +171,5 @@ pub fn part1(program_input: &[i64]) -> usize {
         }
     }
 
-    painted_points.len()
+    painted_points
 }
