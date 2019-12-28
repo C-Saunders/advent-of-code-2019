@@ -1,4 +1,4 @@
-use crate::grid::Point;
+use crate::grid::{Point, Vector};
 use aoc_runner_derive::{aoc, aoc_generator};
 use ordered_float::OrderedFloat;
 use std::collections::HashSet;
@@ -26,14 +26,17 @@ pub fn get_occupied_points(input: &str) -> HashSet<Point> {
 
 #[aoc(day10, part1)]
 pub fn part1(asteroids: &HashSet<Point>) -> usize {
+    find_max_station(&asteroids).1
+}
+
+fn find_max_station(asteroids: &HashSet<Point>) -> (Point, usize) {
     let mut max_point = Point::origin();
     let mut max_detectable = std::usize::MIN;
 
     for curr in asteroids.iter() {
-        let unique_angles = asteroids
+        let unique_angles = get_vectors(&asteroids, &curr)
             .iter()
-            .filter(|asteroid| curr != *asteroid)
-            .map(|asteroid| Point::angle_between(&curr, &asteroid))
+            .map(|vector| vector.angle_deg)
             .collect::<HashSet<OrderedFloat<f64>>>();
 
         let num_detectable = unique_angles.len();
@@ -44,38 +47,84 @@ pub fn part1(asteroids: &HashSet<Point>) -> usize {
         }
     }
 
-    max_detectable
+    (max_point, max_detectable)
 }
 
-// #[aoc(day10, part2)]
-// pub fn part2(program: &[i64]) -> i64 {
-//     let outputs = run_program(&program, &[2]);
-//     *outputs.last().unwrap()
-// }
+fn get_vectors(asteroids: &HashSet<Point>, current: &Point) -> Vec<Vector> {
+    asteroids
+        .iter()
+        .filter(|asteroid| current != *asteroid)
+        .map(|asteroid| Vector::from_points(&current, &asteroid))
+        .collect::<Vec<Vector>>()
+}
+
+#[aoc(day10, part2)]
+pub fn part2(asteroids: &HashSet<Point>) -> i32 {
+    let (station, num_asteroids_detected) = find_max_station(&asteroids);
+    let mut vectors = get_vectors(&asteroids, &station);
+    vectors.sort_by(|a, b| {
+        if a.angle_deg == b.angle_deg {
+            // close to far
+            return a.distance.cmp(&b.distance);
+        }
+        // high to low b/c we want to sweep clockwise
+        return b.angle_deg.cmp(&a.angle_deg);
+    });
+
+    let (first_quadrant, mut others): (Vec<Vector>, Vec<Vector>) = vectors
+        .iter()
+        .partition(|&v| v.angle_deg <= OrderedFloat(90f64));
+
+    let mut all_points = first_quadrant;
+    all_points.append(&mut others);
+
+    let mut destroyed_points: Vec<Point> = Vec::with_capacity(num_asteroids_detected);
+    let mut angles_covered_this_loop = Vec::<OrderedFloat<f64>>::new();
+
+    loop {
+        angles_covered_this_loop.clear();
+        for asteroid_vector in all_points.iter() {
+            if !angles_covered_this_loop.contains(&asteroid_vector.angle_deg)
+                && !destroyed_points.contains(&asteroid_vector.end_point)
+            {
+                destroyed_points.push(asteroid_vector.end_point);
+                angles_covered_this_loop.push(asteroid_vector.angle_deg);
+            }
+        }
+
+        if destroyed_points.len() >= 200 {
+            break;
+        }
+    }
+
+    let target_point = destroyed_points[199];
+
+    target_point.x * 100 + target_point.y
+}
 
 #[cfg(test)]
-mod asteroids_part1 {
+mod asteroids_find_max_station {
     use super::*;
     use indoc::indoc;
 
     #[test]
     fn day10_example1() {
         assert_eq!(
-            part1(&get_occupied_points(&indoc!(
+            find_max_station(&get_occupied_points(&indoc!(
                 ".#..#
                 .....
                 #####
                 ....#
                 ...##"
             ))),
-            8
+            (Point { x: 3, y: 4 }, 8)
         );
     }
 
     #[test]
     fn day10_example_2() {
         assert_eq!(
-            part1(&get_occupied_points(&indoc!(
+            find_max_station(&get_occupied_points(&indoc!(
                 "......#.#.
                 #..#.#....
                 ..#######.
@@ -87,14 +136,14 @@ mod asteroids_part1 {
                 ##...#..#.
                 .#....####"
             ))),
-            33
+            (Point { x: 5, y: 8 }, 33)
         );
     }
 
     #[test]
     fn day10_example_3() {
         assert_eq!(
-            part1(&get_occupied_points(&indoc!(
+            find_max_station(&get_occupied_points(&indoc!(
                 "#.#...#.#.
                 .###....#.
                 .#....#...
@@ -106,14 +155,14 @@ mod asteroids_part1 {
                 ......#...
                 .####.###."
             ))),
-            35
+            (Point { x: 1, y: 2 }, 35)
         );
     }
 
     #[test]
     fn day10_example_4() {
         assert_eq!(
-            part1(&get_occupied_points(&indoc!(
+            find_max_station(&get_occupied_points(&indoc!(
                 ".#..#..###
                 ####.###.#
                 ....###.#.
@@ -125,14 +174,14 @@ mod asteroids_part1 {
                 .##...##.#
                 .....#.#.."
             ))),
-            41
+            (Point { x: 6, y: 3 }, 41)
         );
     }
 
     #[test]
     fn day10_example_5() {
         assert_eq!(
-            part1(&get_occupied_points(&indoc!(
+            find_max_station(&get_occupied_points(&indoc!(
                 ".#..##.###...#######
                 ##.############..##.
                 .#.######.########.#
@@ -154,7 +203,7 @@ mod asteroids_part1 {
                 #.#.#.#####.####.###
                 ###.##.####.##.#..##"
             ))),
-            210
+            (Point { x: 11, y: 13 }, 210)
         );
     }
 }
